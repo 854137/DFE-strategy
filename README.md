@@ -1,2 +1,96 @@
 # DFE-strategy
  A Network Applying Discrepant Feature Enhancement Strategy for Underwater Object Detection
+## Abstract
+Underwater optical imaging suffers from image degradation induced by light absorption and scattering, as well as feature deficiency in small objects. Existing detection methods based on consistent feature enhancement are inadequate for compensating degradation factors across different scales, whereas CNN–Transformer hybrid strategies incur high computational costs. This paper proposes a discrepant feature enhancement network(DFEN) strategy and develops the DFEN-YOLO framework based on YOLOv8. Diverging from the consistent enhancement paradigm of conventional neck networks, our method designs three distinct attention modules—perceptual \& focused attention (PCA), frequency channel spatial attention (FCSA), and branch convolution module (BCM)—for hierarchical discrepant enhancement of small-, medium-, and large-scale feature maps, respectively. PCA employs a dynamic gating mechanism to synergistically integrate the frequency-domain focusing capability of FCSA and the multi-scale spatial perception of BCM. FCSA leverages Discrete Cosine Transform to project spatial features into the frequency domain, applying serial channel and spatial attention to capture global spatial information of medium-scale objects. BCM constructs a multi-branch dilated convolution architecture based on grouped \mbox{convolutions}, focusing on spatial details in large-scale feature maps with low computational cost. Comprehensive experimental evaluation conducted on the URPC2020ZJ and DLMU2024 benchmarks demonstrates that DFEN-YOLO achieves superior performance relative to prevailing methodologies including YOLOv8, AMSP-UOD, and BSR5-DETR across the $AP$, $AP_{50}$, $AP_{75}$, and $AP_S$ metrics. Notably, substantial improvements are observed in small object detection and localization precision, substantiating the efficacy of discrepancy-based enhancement in adapting to complex underwater imaging conditions. This research furnishes an efficient and reliable real-time detection solution with direct applicability to underwater robotic sampling operations and marine ranch monitoring systems.Our code at https://github.com/854137/DFE-strategy
+## Environment
+All models are trained and validated on an NVIDIA TITAN RTX GPU with 24 GiB of memory. The Ultralytics version is 8.3.209, Python version is 3.10.0, and torch version is 2.9.0+cu126. An early stopping mechanism is enabled with a patience of 10 epochs.The model runs in the following environment:
+```python
+Package                 Version      Editable project location
+----------------------- ------------ -------------------------------
+absl-py                 2.3.1
+anyio                   4.11.0
+certifi                 2025.10.5
+charset-normalizer      3.4.3
+choreographer           1.2.0
+click                   8.1.8
+colorama                0.4.6
+contourpy               1.3.0
+cycler                  0.12.1
+DCNv4                   1.0.0.post2
+easydict                1.13
+einops                  0.8.1
+exceptiongroup          1.2.0
+filelock                3.19.1
+fonttools               4.60.1
+fsspec                  2025.9.0
+grpcio                  1.76.0
+h11                     0.16.0
+hf-xet                  1.2.0
+httpcore                1.0.9
+httpx                   0.28.1
+huggingface_hub         1.1.4
+idna                    3.10
+importlib_metadata      8.7.0
+importlib_resources     6.5.2
+iniconfig               2.1.0
+Jinja2                  3.1.6
+kaleido                 1.2.0
+kiwisolver              1.4.7
+lap                     0.5.12
+logistro                2.0.1
+Markdown                3.9
+MarkupSafe              3.0.3
+matplotlib              3.9.4
+mpmath                  1.3.0
+mss                     10.1.0
+narwhals                2.7.0
+networkx                3.2.1
+numpy                   2.0.2
+opencv-python           4.12.0.88
+orjson                  3.11.4
+packaging               25.0
+pandas                  2.3.3
+pillow                  11.3.0
+pip                     25.2
+plotly                  6.3.0
+pluggy                  1.5.0
+polars                  0.19.0
+polars-runtime-32       1.34.0
+protobuf                6.33.0
+psutil                  7.1.0
+pycocotools             2.0.10
+Pygments                2.19.1
+pyparsing               3.2.5
+pytest                  8.4.2
+pytest-timeout          2.4.0
+python-dateutil         2.9.0.post0
+pytz                    2025.2
+PyYAML                  6.0.3
+requests                2.32.5
+safetensors             0.6.2
+scipy                   1.13.1
+seaborn                 0.13.2
+setuptools              80.9.0
+shellingham             1.5.4
+simplejson              3.20.2
+six                     1.17.0
+sniffio                 1.3.1
+sympy                   1.14.0
+tensorboard             2.20.0
+tensorboard-data-server 0.7.2
+timm                    1.0.22
+tomli                   2.2.1
+torch                   2.8.0+cu128
+torch-dct               0.1.6
+torchvision             0.23.0+cu128
+tqdm                    4.67.1
+typer-slim              0.20.0
+typing_extensions       4.15.0
+tzdata                  2025.2
+ultralytics             8.3.209      E:\Pycharm\uod\ultralytics-main
+ultralytics-thop        2.0.17
+urllib3                 2.5.0
+Werkzeug                3.1.3
+wheel                   0.45.1
+zipp                    3.23.0
+```
