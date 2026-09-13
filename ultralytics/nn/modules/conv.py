@@ -784,51 +784,51 @@ class Custom_CBAM(nn.Module):
         x_ave = torch.mean(x_camout, dim=1, keepdim=True)
         x_samout = self.sigmoid(self.conv(torch.cat([x_max.values, x_ave], dim=1))) * x
         return x_samout
+
 # class Custom_CBAM(nn.Module):
 #     # Real CBAM
 #     # 严格按照定义设计的CBAM模块
-#     def __init__(self, c1, ratio=16,  kernel_size=7):
+#     def __init__(self, c1, ratio=16, kernel_size=7):
 #         super(Custom_CBAM, self).__init__()
 #         # CAM initialize
 #         self.ave_pool = nn.AdaptiveAvgPool2d(1)
 #         self.max_pool = nn.AdaptiveMaxPool2d(1)
-#
-#         #shared MLP
+
+#         # shared MLP
 #         self.mlp = nn.Sequential(
-#             nn.Linear(c1, c1//ratio, bias=False),
+#             nn.Linear(c1, c1 // ratio, bias=False),
 #             nn.ReLU(),
-#             nn.Linear(c1//ratio, c1 , bias=False),
+#             nn.Linear(c1 // ratio, c1, bias=False),
 #             # nn.Sigmoid(),
 #         )
-#
+
 #         # CBAM out
 #         self.sigmoid = nn.Sigmoid()
-#
+
 #         # SAM initialize
 #         self.conv = nn.Conv2d(2, 1, kernel_size=kernel_size, stride=1, padding=autopad(kernel_size))
-#
+
 #     def forward(self, x):
+#         in_dtype = x.dtype
+#         w_dtype = self.mlp[0].weight.dtype  # 跟随模块权重精度（fp32 或 fp16）
+
+#         # DCT 用 fp32 计算保证数值稳定，然后对齐到模块权重 dtype
+#         x = DCT.dct_2d(x.float(), norm='ortho').to(w_dtype)
+
 #         # CAM
 #         B, C, H, W = x.shape
-#         x = DCT.dct_2d(x.float(), norm='ortho')
-#         # 上一行是新增修改
 #         x_max = self.mlp(self.max_pool(x).view(B, C))
 #         x_ave = self.mlp(self.ave_pool(x).view(B, C))
-#         # 自带的CBAM没有max_pool
-#         # 全局平均、最大池化后展平成B*C，进行MLP，
-#         # 由于，Linear只对最后一个维度进行操作，所以展平成B*C以对通道进行全连接，
-#         x_camout = self.sigmoid((x_max + x_ave).unsqueeze(-1).unsqueeze(-1))*x
-#         # 这里是并行的模块融合
-#         # 扩展出H,W
-#         # 乘法过程中， [16, 1024, 1, 1] 会被广播成 [16, 1024, 20, 20]
-#
+#         x_camout = self.sigmoid((x_max + x_ave).unsqueeze(-1).unsqueeze(-1)) * x
+
 #         # SAM
-#         x_max = torch.max(x_camout, dim=1, keepdim=True)
-#         x_ave = torch.mean(x_camout,dim=1, keepdim=True)
-#         x_samout = self.sigmoid(self.conv(torch.cat([x_max.values ,x_ave], dim=1)))*x
-#         # return x_samout
-#         return DCT.idct_2d(x_samout, norm='ortho')
-#         # 上一行是新增修改
+#         m = torch.max(x_camout, dim=1, keepdim=True).values
+#         a = torch.mean(x_camout, dim=1, keepdim=True)
+#         x_samout = self.sigmoid(self.conv(torch.cat([m, a], dim=1))) * x
+
+#         # IDCT 同样用 fp32，最后恢复到输入 dtype，保证与网络其他部分一致
+#         out = DCT.idct_2d(x_samout.float(), norm='ortho')
+#         return out.to(in_dtype)
 
 class SEAttention(nn.Module):
      def __init__(self, c1, ratio=16):
@@ -993,6 +993,7 @@ class FEM(nn.Module):
         out = self.relu(out)
 
         return out
+
 # class FEM(nn.Module):
 #     def __init__(self, c1, c2, stride=1, scale=0.1, map_reduce=8):
 #         # scale为缩放因子，在最后与shortcut进行加权融合
@@ -1006,48 +1007,54 @@ class FEM(nn.Module):
 #         self.branch0 = nn.Sequential(
 #             # BasicConv(c1, 2 * inter_planes, kernel_size=1, stride=stride),
 #             # BasicConv(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=1, relu=False)
-#             nn.Conv2d(c1, 2 * inter_planes, kernel_size=1, stride=stride, groups=c1),
+#             nn.Conv2d(c1, 2 * inter_planes, kernel_size=1, stride=stride, groups=2 * inter_planes),
+#             nn.BatchNorm2d(2 * inter_planes, momentum=0.01),
 #             nn.Conv2d(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=1, groups=2 * inter_planes),
+#             nn.BatchNorm2d(2 * inter_planes, momentum=0.01)
 #         )
 #         self.branch1 = nn.Sequential(
 #             # BasicConv(c1, inter_planes, kernel_size=1, stride=1),
 #             # BasicConv(inter_planes, (inter_planes // 2) * 3, kernel_size=(1, 3), stride=stride, padding=(0, 1)),
 #             # BasicConv((inter_planes // 2) * 3, 2 * inter_planes, kernel_size=(3, 1), stride=stride, padding=(1, 0)),
 #             # BasicConv(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=5, dilation=5, relu=False)
-#             nn.Conv2d(c1, inter_planes, kernel_size=1, stride=1, groups=c1),
-#             nn.SiLU(inplace=True),
+#             nn.Conv2d(c1, inter_planes, kernel_size=1, stride=1, groups=inter_planes),
+#             nn.BatchNorm2d(inter_planes, momentum=0.01),
+#             nn.ReLU(inplace=True),
 #             nn.Conv2d(inter_planes, (inter_planes // 2) * 3, kernel_size=(1, 5), stride=stride, padding=(0, 2)),
-#             nn.SiLU(inplace=True),
+#             nn.BatchNorm2d((inter_planes // 2) * 3, momentum=0.01),
+#             nn.ReLU(inplace=True),
 #             nn.Conv2d((inter_planes // 2) * 3, 2 * inter_planes, kernel_size=(5, 1), stride=stride, padding=(2, 0)),
+#             nn.BatchNorm2d(2 * inter_planes, momentum=0.01),
 #             nn.SiLU(inplace=True),
-#             nn.Conv2d(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=5, dilation=5, groups=2 * inter_planes),
-#
-#
+#             nn.Conv2d(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=5, dilation=5,
+#                       groups=2 * inter_planes),
 #         )
 #         self.branch2 = nn.Sequential(
 #             # BasicConv(c1, inter_planes, kernel_size=1, stride=1),
 #             # BasicConv(inter_planes, (inter_planes // 2) * 3, kernel_size=(3, 1), stride=stride, padding=(1, 0)),
 #             # BasicConv((inter_planes // 2) * 3, 2 * inter_planes, kernel_size=(1, 3), stride=stride, padding=(0, 1)),
 #             # BasicConv(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=5, dilation=5, relu=False)
-#             nn.Conv2d(c1, inter_planes, kernel_size=1, stride=1, groups=c1),
-#             nn.SiLU(inplace=True),
+#             nn.Conv2d(c1, inter_planes, kernel_size=1, stride=1, groups=inter_planes),
+#             nn.BatchNorm2d(inter_planes, momentum=0.01),
+#             nn.ReLU(inplace=True),
 #             nn.Conv2d(inter_planes, (inter_planes // 2) * 3, kernel_size=(5, 1), stride=stride, padding=(2, 0)),
-#             nn.SiLU(inplace=True),
+#             nn.BatchNorm2d((inter_planes // 2) * 3, momentum=0.01),
+#             nn.ReLU(inplace=True),
 #             nn.Conv2d((inter_planes // 2) * 3, 2 * inter_planes, kernel_size=(1, 5), stride=stride, padding=(0, 2)),
+#             nn.BatchNorm2d(2 * inter_planes, momentum=0.01),
 #             nn.SiLU(inplace=True),
-#             nn.Conv2d(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=5, dilation=5, groups=2 * inter_planes)
-#
+#             nn.Conv2d(2 * inter_planes, 2 * inter_planes, kernel_size=3, stride=1, padding=5, dilation=5,
+#                       groups=2 * inter_planes)
 #         )
-#
-#         self.ConvLinear = BasicConv(6 * inter_planes, c2, k=1, s=1, act=False)
+#         self.ConvLinear = Conv(6 * inter_planes, c2, k=1, s=1, act=False)
 #         self.shortcut = Conv(c1, c2, k=1, s=stride, act=False)
-#         self.relu = nn.ReLU(inplace=False)
-#
+#         self.relu = nn.SiLU(inplace=False)
+
 #     def forward(self, x):
 #         x0 = self.branch0(x)
 #         x1 = self.branch1(x)
 #         x2 = self.branch2(x)
-#
+
 #         out = torch.cat((x0, x1, x2), 1)
 #         out = self.ConvLinear(out)
 #         # 输出通道数为c2
@@ -1055,7 +1062,7 @@ class FEM(nn.Module):
 #         # 输出通道数为c2
 #         out = out * self.scale + short
 #         out = self.relu(out)
-#
+
 #         return out
 
 class BasicRFB(nn.Module):
